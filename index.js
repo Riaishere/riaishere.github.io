@@ -2,7 +2,6 @@
 // 文件名: index.js (为 陈科瑾 定制的 MVP 版本)
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 
 // AI模型调用函数
 async function callAIModel(userMessage) {
