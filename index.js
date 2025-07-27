@@ -1,60 +1,5 @@
 
-// 文件名: index.js (为陈科瑾定制的完整版本)
-const fs = require('fs');
-const path = require('path');
-
-// AI模型调用函数
-async function callAIModel(userMessage) {
-    const systemPrompt = `你是陈科瑾的AI助手。陈科瑾是一位AI应用开发工程师，专注于构建可扩展、高性能的AI驱动的应用程序。
-
-关于陈科瑾的基本信息：
-- 姓名：陈科瑾
-- 职业：AI应用开发工程师
-- 核心领域：AI应用后端架构、算法实现与优化
-- 技能栈：Python, Go, Docker, Kubernetes, TensorFlow, PyTorch
-- 特点：热衷于解决复杂的技术挑战，追求代码的健壮性和效率
-- 邮箱：chekj@epsoft.com.cn
-- 个人网站：riaishere.github.io
-
-请以专业、简洁、友好的语气回答用户的问题，重点介绍陈科瑾的技术能力和项目经验。`;
-
-    // 从环境变量中读取API密钥
-    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-        console.log('未找到API密钥，使用测试模式');
-        return getTestResponse(userMessage);
-    }
-
-    try {
-        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userMessage }
-                ],
-                max_tokens: 500,
-                temperature: 0.7
-            })
-        });
-        
-        if (!response.ok) { 
-            throw new Error(`API 请求失败: ${response.status}`); 
-        }
-        
-        const data = await response.json();
-        return data.choices[0].message.content;
-    } catch (error) {
-        console.error('调用AI模型失败:', error);
-        return getTestResponse(userMessage); // 降级到测试模式
-    }
-}
+// 文件名: index.js (为陈科瑾定制的稳定版本)
 
 // 测试模式回复函数
 function getTestResponse(userMessage) {
@@ -80,136 +25,173 @@ function getTestResponse(userMessage) {
         return '可以通过邮箱 chekj@epsoft.com.cn 联系陈科瑾，或者访问他的个人网站 riaishere.github.io 了解更多信息。';
     }
     
-    // 默认回复
     return `感谢你询问关于"${userMessage}"的问题。陈科瑾是一位AI应用开发工程师，擅长构建高性能的AI驱动应用。你可以问我关于他的技术背景、项目经验或联系方式等问题。`;
 }
 
-// 获取HTML内容
-function getHTMLContent() {
-    // 如果有单独的HTML文件，优先读取
-    const htmlPath = path.join(__dirname, 'index.html');
-    if (fs.existsSync(htmlPath)) {
-        return fs.readFileSync(htmlPath, 'utf-8');
-    }
+// 主处理函数 - 简化版本
+exports.handler = async (event, context) => {
+    console.log('收到请求:', JSON.stringify(event));
     
-    // 否则返回内嵌的HTML内容
-    return `<!DOCTYPE html>
+    try {
+        // 获取请求信息
+        const method = event.httpMethod || event.method || 'GET';
+        const path = event.path || '/';
+        
+        // 创建响应对象
+        const response = {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            },
+            body: ''
+        };
+
+        // 处理OPTIONS请求
+        if (method === 'OPTIONS') {
+            response.statusCode = 204;
+            return response;
+        }
+
+        // 处理聊天API
+        if (path === '/api/chat' && method === 'POST') {
+            try {
+                const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+                const message = body?.message || '';
+                
+                if (!message.trim()) {
+                    response.statusCode = 400;
+                    response.headers['Content-Type'] = 'application/json';
+                    response.body = JSON.stringify({ error: 'Message is required' });
+                    return response;
+                }
+                
+                const reply = getTestResponse(message);
+                response.headers['Content-Type'] = 'application/json';
+                response.body = JSON.stringify({
+                    success: true,
+                    reply: reply,
+                    timestamp: new Date().toISOString()
+                });
+                return response;
+                
+            } catch (error) {
+                console.error('聊天API错误:', error);
+                response.statusCode = 500;
+                response.headers['Content-Type'] = 'application/json';
+                response.body = JSON.stringify({ error: 'Internal Server Error' });
+                return response;
+            }
+        }
+
+        // 返回HTML页面
+        const htmlContent = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>陈科瑾 - AI应用开发工程师</title>
     <style>
-        body { 
-            font-family: 'Microsoft YaHei', Arial, sans-serif; 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+            line-height: 1.6; color: #333; scroll-behavior: smooth;
+        }
+        .navbar {
+            position: fixed; top: 0; width: 100%; background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px); padding: 1rem 2rem; box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1); z-index: 1000;
+        }
+        .nav-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: bold; color: #667eea; }
+        .nav-links { display: flex; list-style: none; gap: 2rem; }
+        .nav-links a { text-decoration: none; color: #333; font-weight: 500; transition: color 0.3s; }
+        .nav-links a:hover { color: #667eea; }
+        .hero-section {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh; display: flex; justify-content: center; align-items: center;
-            text-align: center; color: white; margin: 0;
+            text-align: center; color: white;
         }
         .hero-container {
             background: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 60px 40px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px);
             max-width: 600px; width: 90%;
         }
+        .hero-title { font-size: 3rem; margin-bottom: 1rem; font-weight: bold; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3); }
+        .hero-subtitle { font-size: 1.3rem; margin-bottom: 1rem; opacity: 0.9; }
+        .hero-description { font-size: 1.1rem; margin-bottom: 2rem; opacity: 0.8; }
+        .section { padding: 80px 2rem; max-width: 1200px; margin: 0 auto; }
+        .section-title { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; color: #333; }
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero-title { font-size: 2.5rem; }
+            .section { padding: 60px 1rem; }
+        }
+        .hero-container { animation: fadeInUp 1s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
-    <div class="hero-container">
-        <div style="font-size: 2rem; margin-bottom: 1rem;">🌟</div>
-        <h1 style="font-size: 3rem; margin-bottom: 1rem;">石耳在这里</h1>
-        <p style="font-size: 1.3rem; margin-bottom: 1rem;">我是陈科瑾</p>
-        <p style="font-size: 1.1rem; opacity: 0.8;">AI应用开发工程师</p>
-        <div style="font-size: 2rem; margin-top: 1rem;">✨</div>
-    </div>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">陈科瑾</div>
+            <ul class="nav-links">
+                <li><a href="#home">首页</a></li>
+                <li><a href="#about">关于我</a></li>
+                <li><a href="#contact">联系</a></li>
+            </ul>
+        </div>
+    </nav>
+    
+    <section id="home" class="hero-section">
+        <div class="hero-container">
+            <div style="font-size: 2rem; margin-bottom: 1rem;">🌟</div>
+            <h1 class="hero-title">石耳在这里</h1>
+            <p class="hero-subtitle">我是陈科瑾</p>
+            <p class="hero-description">AI应用开发工程师 | 专注于构建可扩展、高性能的AI驱动应用程序</p>
+            <div style="font-size: 2rem; margin-top: 1rem;">✨</div>
+        </div>
+    </section>
+    
+    <section id="about" class="section">
+        <h2 class="section-title">关于我</h2>
+        <div style="text-align: center;">
+            <div style="font-size: 4rem; margin-bottom: 2rem;">👨‍💻</div>
+            <p style="font-size: 1.1rem; line-height: 1.8; max-width: 800px; margin: 0 auto;">
+                你好！我是陈科瑾，一位专注于AI应用开发的工程师。我热衷于探索人工智能技术在实际业务场景中的应用，致力于构建可扩展、高性能的AI驱动应用程序。
+            </p>
+        </div>
+    </section>
+    
+    <section id="contact" class="section" style="background: #f8f9fa;">
+        <h2 class="section-title">联系我</h2>
+        <div style="text-align: center;">
+            <p><strong>邮箱:</strong> chekj@epsoft.com.cn</p>
+            <p><strong>GitHub:</strong> github.com/riaishere</p>
+            <p><strong>网站:</strong> riaishere.github.io</p>
+        </div>
+    </section>
+    
+    <footer style="background: #333; color: white; text-align: center; padding: 2rem;">
+        <p>&copy; 2024 陈科瑾. Built with ❤️ and AI</p>
+    </footer>
+    
     <script>
-        console.log('陈科瑾的个人网站已加载');
+        console.log('陈科瑾的个人网站已加载 - 简化版本');
     </script>
 </body>
 </html>`;
-}
 
-// 主处理函数 - 兼容阿里云FC
-module.exports.handler = async function(event, context) {
-    // 兼容不同的事件格式
-    const req = event;
-    const requestPath = req.path || req.url || '/';
-    const method = req.method || req.httpMethod || 'GET';
-    
-    // 创建兼容的响应对象
-    const response = {
-        statusCode: 200,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        },
-        body: ''
-    };
-
-    // 处理OPTIONS预检请求
-    if (method.toUpperCase() === 'OPTIONS') {
-        response.statusCode = 204;
+        response.body = htmlContent;
         return response;
-    }
 
-    // 处理API聊天请求
-    if (requestPath === '/api/chat') {
-        if (method.toUpperCase() !== 'POST') {
-            response.statusCode = 405;
-            response.headers['Content-Type'] = 'application/json';
-            response.body = JSON.stringify({ error: 'Method Not Allowed' });
-            return response;
-        }
-        
-        try {
-            let userMessage;
-            if (typeof req.body === 'string') {
-                const body = JSON.parse(req.body);
-                userMessage = body.message;
-            } else {
-                userMessage = req.body?.message;
-            }
-            
-            if (!userMessage || userMessage.trim() === '') {
-                response.statusCode = 400;
-                response.headers['Content-Type'] = 'application/json';
-                response.body = JSON.stringify({ error: 'Message is required' });
-                return response;
-            }
-            
-            const reply = await callAIModel(userMessage);
-            response.headers['Content-Type'] = 'application/json';
-            response.body = JSON.stringify({ 
-                success: true, 
-                reply: reply,
-                timestamp: new Date().toISOString()
-            });
-            return response;
-            
-        } catch (error) {
-            console.error('API处理失败:', error);
-            response.statusCode = 500;
-            response.headers['Content-Type'] = 'application/json';
-            response.body = JSON.stringify({ 
-                error: 'Internal Server Error',
-                message: '服务器内部错误，请稍后重试'
-            });
-            return response;
-        }
-    }
-    
-    // 处理静态文件请求
-    try {
-        const content = getHTMLContent();
-        response.headers['Content-Type'] = 'text/html; charset=utf-8';
-        response.body = content;
-        return response;
-        
     } catch (error) {
-        console.error('读取HTML文件失败:', error);
-        response.statusCode = 500;
-        response.headers['Content-Type'] = 'text/plain';
-        response.body = '服务器错误：无法加载页面';
-        return response;
+        console.error('函数执行错误:', error);
+        return {
+            statusCode: 500,
+            headers: { 'Content-Type': 'text/plain' },
+            body: '服务器内部错误'
+        };
     }
 };
