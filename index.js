@@ -128,70 +128,88 @@ function getHTMLContent() {
 </html>`;
 }
 
-// 主处理函数
-module.exports.handler = async function(req, res, context) {
-    const requestPath = req.path || '/';
+// 主处理函数 - 兼容阿里云FC
+module.exports.handler = async function(event, context) {
+    // 兼容不同的事件格式
+    const req = event;
+    const requestPath = req.path || req.url || '/';
+    const method = req.method || req.httpMethod || 'GET';
     
-    // 设置CORS头
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // 创建兼容的响应对象
+    const response = {
+        statusCode: 200,
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        },
+        body: ''
+    };
 
     // 处理OPTIONS预检请求
-    if (req.method.toUpperCase() === 'OPTIONS') {
-        res.setStatusCode(204);
-        res.send('');
-        return;
+    if (method.toUpperCase() === 'OPTIONS') {
+        response.statusCode = 204;
+        return response;
     }
 
     // 处理API聊天请求
     if (requestPath === '/api/chat') {
-        if (req.method.toUpperCase() !== 'POST') {
-            res.setStatusCode(405);
-            res.setHeader('content-type', 'application/json');
-            res.send(JSON.stringify({ error: 'Method Not Allowed' }));
-            return;
+        if (method.toUpperCase() !== 'POST') {
+            response.statusCode = 405;
+            response.headers['Content-Type'] = 'application/json';
+            response.body = JSON.stringify({ error: 'Method Not Allowed' });
+            return response;
         }
         
         try {
-            const body = JSON.parse(req.body.toString());
-            const userMessage = body.message;
+            let userMessage;
+            if (typeof req.body === 'string') {
+                const body = JSON.parse(req.body);
+                userMessage = body.message;
+            } else {
+                userMessage = req.body?.message;
+            }
             
             if (!userMessage || userMessage.trim() === '') {
-                res.setStatusCode(400);
-                res.setHeader('content-type', 'application/json');
-                res.send(JSON.stringify({ error: 'Message is required' }));
-                return;
+                response.statusCode = 400;
+                response.headers['Content-Type'] = 'application/json';
+                response.body = JSON.stringify({ error: 'Message is required' });
+                return response;
             }
             
             const reply = await callAIModel(userMessage);
-            res.setHeader('content-type', 'application/json');
-            res.send(JSON.stringify({ 
+            response.headers['Content-Type'] = 'application/json';
+            response.body = JSON.stringify({ 
                 success: true, 
                 reply: reply,
                 timestamp: new Date().toISOString()
-            }));
+            });
+            return response;
+            
         } catch (error) {
             console.error('API处理失败:', error);
-            res.setStatusCode(500);
-            res.setHeader('content-type', 'application/json');
-            res.send(JSON.stringify({ 
+            response.statusCode = 500;
+            response.headers['Content-Type'] = 'application/json';
+            response.body = JSON.stringify({ 
                 error: 'Internal Server Error',
                 message: '服务器内部错误，请稍后重试'
-            }));
+            });
+            return response;
         }
-        return;
     }
     
     // 处理静态文件请求
     try {
         const content = getHTMLContent();
-        res.setHeader('content-type', 'text/html; charset=utf-8');
-        res.send(content);
+        response.headers['Content-Type'] = 'text/html; charset=utf-8';
+        response.body = content;
+        return response;
+        
     } catch (error) {
         console.error('读取HTML文件失败:', error);
-        res.setStatusCode(500);
-        res.setHeader('content-type', 'text/plain');
-        res.send('服务器错误：无法加载页面');
+        response.statusCode = 500;
+        response.headers['Content-Type'] = 'text/plain';
+        response.body = '服务器错误：无法加载页面';
+        return response;
     }
 };
