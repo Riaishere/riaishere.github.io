@@ -1,14 +1,14 @@
 ROSTemplateFormatVersion: '2015-09-01'
 Transform: 'Aliyun::Serverless-2018-04-03'
 Resources:
-  chenkejin-website:
+  personal_website:
     Type: 'Aliyun::Serverless::Service'
     Properties:
-      Description: '陈科瑾个人网站服务'
-    website:
+      Description: '个人网站服务'
+    personal_website:
       Type: 'Aliyun::Serverless::Function'
       Properties:
-        Description: '陈科瑾个人网站主函数'
+        Description: '个人网站主函数'
         CodeUri: './'
         Handler: index.handler
         Runtime: nodejs14
