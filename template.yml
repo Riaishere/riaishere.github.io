@@ -14,16 +14,16 @@ Resources:
         routeConfig:
           routes:
             '/*': # 所有流量都指向这一个函数
-              functionName: router_function
+              functionName: app
               methods: ['GET', 'POST', 'OPTIONS']
 
-    # 唯一的“路由器”函数
-    router_function:
+    # 唯一的函数入口
+    app:
       Type: 'Aliyun::Serverless::Function'
       Properties:
-        Description: '统一处理所有请求的路由器函数'
+        Description: 'Express App on FC'
         CodeUri: './'
-        Handler: index.handler # 所有逻辑都回到index.js
+        Handler: index.handler
         Runtime: nodejs20
         Timeout: 60
         MemorySize: 256
