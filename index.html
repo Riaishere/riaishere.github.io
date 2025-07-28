@@ -167,7 +167,7 @@
 
             const aboutContent = `
 <div class="profile-image-container">
-    <img src="Ria.jpg" alt="Ria's Avatar" class="profile-image">
+    <img src="Ria.jpg?t=${new Date().getTime()}" alt="Ria's Avatar" class="profile-image">
 </div>
 你好！我是陈科瑾，一位专注于AI应用开发的工程师。
 我热衷于探索人工智能技术在实际业务场景中的应用，致力于构建可扩展、高性能的AI驱动应用程序。
@@ -279,6 +279,9 @@
                     switchToCommandMode();
                     return;
                 }
+                
+                // 禁用输入框
+                input.disabled = true;
 
                 const thinkingLine = document.createElement('div');
                 thinkingLine.className = 'output-line';
@@ -301,13 +304,19 @@
                     }
                     
                     const data = await response.json();
-                    printToTerminal(`<span class="prompt" style="color: var(--blue);">AI:</span> ${data.reply.replace(/\\n/g, '<br>')}`);
+                    // 使用replace处理可能的换行符 \n 为 <br>
+                    const formattedReply = data.reply.replace(/\\n/g, '<br>');
+                    printToTerminal(`<span class="prompt" style="color: var(--blue);">AI:</span> ${formattedReply}`);
 
                 } catch (error) {
                     if (output.contains(thinkingLine)) {
                        output.removeChild(thinkingLine);
                     }
                     printToTerminal(`[AI Error]: ${error.message}`, 'error');
+                } finally {
+                    // 无论成功失败，都重新启用输入框
+                    input.disabled = false;
+                    input.focus(); // 重新聚焦
                 }
             };
 
