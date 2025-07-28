@@ -7,6 +7,12 @@ const https = require('https');
 
 const app = express();
 
+// 日志中间件：打印每个进入Express的请求
+app.use((req, res, next) => {
+  console.log(`[Express Router] 收到请求: 方法=${req.method}, 路径=${req.path}, 原始URL=${req.originalUrl}`);
+  next(); // 将请求传递给下一个中间件或路由处理器
+});
+
 // 中间件，用于解析请求体中的JSON数据
 app.use(express.json());
 
