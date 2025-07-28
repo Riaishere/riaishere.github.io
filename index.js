@@ -12,6 +12,11 @@ const CORS_HEADERS = {
 
 // 主处理函数 (最终修正版)
 exports.handler = async (event, context) => {
+  // 诊断日志：打印出收到的完整事件对象，以便我们能看到真实的数据结构
+  console.log('--- 收到完整的原始事件 (event) ---');
+  console.log(JSON.stringify(event, null, 2));
+  console.log('--- 原始事件打印完毕 ---');
+
   // 正确地从事件的顶层获取路径和方法
   const requestPath = event.path || '/';
   const httpMethod = event.httpMethod || 'GET';
