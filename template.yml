@@ -5,25 +5,33 @@ Resources:
     Type: 'Aliyun::Serverless::Service'
     Properties:
       Description: '个人网站服务'
+
+    # 统一的自定义域名配置，包含路由规则
+    custom_domain:
+      Type: 'Aliyun::Serverless::CustomDomain'
+      Properties:
+        domainName: www.ria-hello.space
+        protocol: HTTP # 稍后可以改为 HTTPS
+        routeConfig:
+          routes:
+            '/chat': # API路由
+              functionName: chat_api
+              methods: ['POST', 'OPTIONS']
+            '/*': # 网站主页路由，匹配所有其他路径
+              functionName: website_ui
+              methods: ['GET']
+
     # 静态网站托管函数
-    personal_website:
+    website_ui:
       Type: 'Aliyun::Serverless::Function'
       Properties:
-        Description: '个人网站主函数'
+        Description: '个人网站UI界面'
         CodeUri: './'
         Handler: index.handler
         Runtime: nodejs20
-        Timeout: 60
+        Timeout: 20
         MemorySize: 256
-        EnvironmentVariables:
-          DEEPSEEK_API_KEY: '你的DeepSeek API密钥'
-        Events:
-          httpTrigger:
-            Type: HTTP
-            Properties:
-              AuthType: ANONYMOUS
-              Methods:
-                - GET
+
     # AI聊天API函数
     chat_api:
       Type: 'Aliyun::Serverless::Function'
@@ -35,12 +43,4 @@ Resources:
         Timeout: 60
         MemorySize: 256
         EnvironmentVariables:
-          DEEPSEEK_API_KEY: '你的DeepSeek API密钥' # 请务必替换成你自己的密钥
-        Events:
-          httpTrigger:
-            Type: HTTP
-            Properties:
-              AuthType: ANONYMOUS
-              Methods:
-                - POST
-                - OPTIONS 
+          DEEPSEEK_API_KEY: 'sk-1a8336c2d95f40bca593106447db7116' # 我已经从你的截图中获取并填入了API Key 
