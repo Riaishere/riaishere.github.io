@@ -155,7 +155,7 @@
             const welcomeMessage = `
   ****************************************************************
   *                                                              *
-  *          欢迎来到 陈科瑾 的交互式终端简历          *
+  *          欢迎来到 陈科瑾 的交互式终端                           *
   *                                                              *
   ****************************************************************
 
@@ -398,10 +398,9 @@
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
-            const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
-            const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            // 只使用数字，营造纯数字雨效果
             const nums = '0123456789';
-            const alphabet = katakana + latin + nums;
+            const alphabet = nums;
 
             // 暗色系颜色数组 - 增强可见度
             const darkColors = [
@@ -433,8 +432,8 @@
             }
 
             const draw = () => {
-                // 更深的黑色背景，更慢的消散效果
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+                // 黑色背景，适中的消散效果 - 避免字符重叠
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 const currentTime = Date.now();
@@ -448,9 +447,9 @@
                         drop.lastColorChange = currentTime;
                     }
                     
-                    // 字符变化控制 - 每5-10帧才变化一次字符
+                    // 字符变化控制 - 每8-15帧才变化一次字符
                     drop.charChangeCounter++;
-                    if (drop.charChangeCounter > 5 + Math.random() * 5) {
+                    if (drop.charChangeCounter > 8 + Math.random() * 7) {
                         drop.currentChar = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
                         drop.charChangeCounter = 0;
                     }
