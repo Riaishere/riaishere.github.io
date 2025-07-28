@@ -16,9 +16,9 @@
     "机器学习"
   ],
   "author": "陈科瑾 <chekj@epsoft.com.cn>",
-  "license": "MIT",
+  "license": "ISC",
   "dependencies": {
-    "node-fetch": "^2.6.1"
+    "axios": "^1.7.2"
   },
   "engines": {
     "node": ">=14.0.0"

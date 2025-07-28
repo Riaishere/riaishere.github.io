@@ -459,14 +459,14 @@
                 <h3>💬 AI助手</h3>
                 <p>问我任何关于陈科瑾的问题</p>
             </div>
-            <div class="chat-messages" id="chatMessages">
+            <div class="chat-box" id="chat-box">
                 <div class="message ai-message">
-                    你好！我是陈科瑾的AI助手。我可以回答关于他的技能、项目经验等问题。试试问我"你好"或者"陈科瑾的技术栈是什么"吧！
+                    <p>你好！我是陈科瑾的AI助手“石耳AI”。我可以回答关于他的技能、项目经验等问题。试试问我"你好"或者"陈科瑾的技术栈是什么"吧！</p>
                 </div>
             </div>
             <div class="chat-input-container">
-                <input type="text" class="chat-input" id="messageInput" placeholder="输入你的问题..." maxlength="500">
-                <button class="send-button" id="sendButton" onclick="sendMessage()">发送</button>
+                <input type="text" id="user-input" placeholder="问我任何关于陈科瑾的问题...">
+                <button id="send-button">发送</button>
             </div>
         </div>
     </section>
@@ -542,111 +542,75 @@
     </footer>
 
     <script>
-        // AI聊天功能
-        let isLoading = false;
-
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const sendButton = document.getElementById('sendButton');
-            const message = input.value.trim();
+        // 脚本移动到文件末尾以确保DOM加载完毕
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatBox = document.getElementById('chat-box');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
             
-            if (!message || isLoading) return;
+            // API端点，根据你的实际部署情况，可能需要配置为完整的URL
+            const API_ENDPOINT = '/chat'; 
 
-            // 显示用户消息
-            addMessageToChat('user', message);
-            input.value = '';
-            
-            // 设置加载状态
-            isLoading = true;
-            sendButton.disabled = true;
-            sendButton.textContent = '发送中...';
+            const sendMessage = async () => {
+                const message = userInput.value.trim();
+                if (!message) return;
 
-            try {
-                // 连接到阿里云FC后端
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ message: message })
-                });
+                // 1. 在聊天框显示用户消息
+                appendMessage(message, 'user-message');
+                userInput.value = '';
+                
+                // 2. 显示"思考中..."的提示
+                const thinkingMessage = appendMessage('思考中...', 'ai-message thinking');
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                if (data.success) {
-                    addMessageToChat('ai', data.reply);
-                } else {
-                    addMessageToChat('ai', data.message || '抱歉，出现了一些问题。');
-                }
-
-            } catch (error) {
-                console.error('发送消息失败:', error);
-                // 降级到模拟回复
-                const mockResponse = await getMockAIResponse(message);
-                addMessageToChat('ai', mockResponse);
-            } finally {
-                // 恢复状态
-                isLoading = false;
-                sendButton.disabled = false;
-                sendButton.textContent = '发送';
-            }
-        }
-
-        // 模拟AI响应（降级方案）
-        async function getMockAIResponse(message) {
-            // 模拟网络延迟
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const msg = message.toLowerCase();
-            
-            if (msg.includes('你好') || msg.includes('hello') || msg.includes('hi')) {
-                return '你好！我是陈科瑾的AI助手。我可以回答关于他的技能、项目经验和职业背景等问题。';
-            }
-            
-            if (msg.includes('技能') || msg.includes('技术') || msg.includes('能力')) {
-                return '陈科瑾的核心技术栈包括 Python, Go, Docker, Kubernetes, 以及主流的深度学习框架如 TensorFlow 和 PyTorch。他专注于AI应用后端架构设计和算法优化。';
-            }
-            
-            if (msg.includes('工作') || msg.includes('职业') || msg.includes('经历')) {
-                return '陈科瑾是一位AI应用开发工程师，专注于构建和优化AI驱动的应用程序。他在AI应用后端架构、算法实现与优化方面有丰富的经验。';
-            }
-            
-            if (msg.includes('项目') || msg.includes('作品')) {
-                return '陈科瑾参与开发了多个AI项目，包括智能聊天机器人、个性化推荐系统和AI模型服务平台等。这些项目都体现了他在AI技术应用方面的专业能力。';
-            }
-            
-            return `感谢你的提问："${message}"。作为陈科瑾的AI助手，我很乐意为你介绍更多关于他的信息。你可以问我关于他的技术背景、项目经验或职业发展等问题。`;
-        }
-
-        // 添加消息到聊天界面
-        function addMessageToChat(sender, message) {
-            const chatMessages = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}-message`;
-            messageDiv.textContent = message;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // 回车键发送消息
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // 平滑滚动
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth'
+                try {
+                    // 3. 调用后端API
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ message: message }),
                     });
+
+                    // 移除"思考中..."
+                    chatBox.removeChild(thinkingMessage);
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'AI服务返回错误');
+                    }
+
+                    const data = await response.json();
+                    // 4. 显示AI的回复
+                    appendMessage(data.reply, 'ai-message');
+
+                } catch (error) {
+                    console.error('发送消息时出错:', error);
+                    // 确保在出错时也移除"思考中..."
+                    if (chatBox.contains(thinkingMessage)) {
+                        chatBox.removeChild(thinkingMessage);
+                    }
+                    appendMessage(`抱歉，我好像出了一点问题: ${error.message}`, 'ai-message error');
+                }
+            };
+
+            const appendMessage = (text, className) => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${className}`;
+                
+                const p = document.createElement('p');
+                p.textContent = text;
+                messageElement.appendChild(p);
+                
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight; // 自动滚动到底部
+                return messageElement;
+            };
+
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    sendMessage();
                 }
             });
         });
