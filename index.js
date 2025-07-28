@@ -1,7 +1,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+const https = require('https'); // 使用Node.js内置的https模块
 
 // 从环境变量中获取API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
@@ -48,58 +48,82 @@ function handleStaticPageRequest() {
   }
 }
 
-// 处理AI聊天请求的函数 (从api/chat.js移植而来)
-async function handleChatRequest(event) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json; charset=utf-8',
-  };
+// 处理AI聊天请求的函数 (使用原生https重写)
+function handleChatRequest(event) {
+  return new Promise((resolve) => {
+    const headers = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Content-Type': 'application/json; charset=utf-8',
+    };
 
-  const httpMethod = event.httpMethod || (event.requestContext && event.requestContext.method) || 'GET';
+    const httpMethod = event.httpMethod || (event.requestContext && event.requestContext.method) || 'GET';
 
-  if (httpMethod === 'OPTIONS') {
-    console.log("正在处理 OPTIONS 预检请求");
-    return { statusCode: 204, headers, body: '' };
-  }
-
-  try {
-    const body = JSON.parse(event.body || '{}');
-    const userMessage = body.message;
-
-    if (!userMessage) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'message 字段不能为空' }) };
-    }
-    if (!DEEPSEEK_API_KEY) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: '服务器未配置 DEEPSEEK_API_KEY' }) };
+    if (httpMethod === 'OPTIONS') {
+      console.log("正在处理 OPTIONS 预检请求");
+      return resolve({ statusCode: 204, headers, body: '' });
     }
 
-    console.log(`正在向 DeepSeek API 发送消息: ${userMessage}`);
-    const response = await axios.post(
-      API_URL,
-      {
+    try {
+      const body = JSON.parse(event.body || '{}');
+      const userMessage = body.message;
+
+      if (!userMessage) {
+        return resolve({ statusCode: 400, headers, body: JSON.stringify({ error: 'message 字段不能为空' }) });
+      }
+      if (!DEEPSEEK_API_KEY) {
+        return resolve({ statusCode: 500, headers, body: JSON.stringify({ error: '服务器未配置 DEEPSEEK_API_KEY' }) });
+      }
+      
+      const postData = JSON.stringify({
         model: 'deepseek-chat',
         messages: [
           { content: '你是一个AI助手，你的名字叫“石耳AI”，由陈科瑾创造。请用友好、简洁、乐于助人的语气回答问题。', role: 'system' },
           { content: userMessage, role: 'user' },
         ],
         stream: false,
-      },
-      {
-        headers: {
+      });
+
+      const options = {
+        hostname: 'api.deepseek.com',
+        path: '/chat/completions',
+        method: 'POST',
+            headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Content-Length': Buffer.byteLength(postData),
         },
-      }
-    );
-    
-    const aiMessage = response.data.choices[0].message.content;
-    console.log(`从 DeepSeek API 收到回复: ${aiMessage}`);
-    return { statusCode: 200, headers, body: JSON.stringify({ reply: aiMessage }) };
+      };
 
-  } catch (error) {
-    console.error('调用 DeepSeek API 时出错:', error.response ? error.response.data : error.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: '调用AI服务时发生内部错误' }) };
-  }
+      console.log(`正在向 DeepSeek API 发送消息...`);
+      const req = https.request(options, (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const responseData = JSON.parse(responseBody);
+            const aiMessage = responseData.choices[0].message.content;
+            console.log(`从 DeepSeek API 收到回复。`);
+            resolve({ statusCode: 200, headers, body: JSON.stringify({ reply: aiMessage }) });
+          } else {
+            console.error('DeepSeek API 返回错误:', responseBody);
+            resolve({ statusCode: 500, headers, body: JSON.stringify({ error: `AI服务返回错误: ${responseBody}` }) });
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        console.error(`请求 DeepSeek API 时出错: ${e.message}`);
+        resolve({ statusCode: 500, headers, body: JSON.stringify({ error: '调用AI服务时发生网络错误' }) });
+      });
+
+      req.write(postData);
+      req.end();
+
+    } catch (error) {
+      console.error('处理聊天请求时发生同步错误:', error.message);
+      resolve({ statusCode: 500, headers, body: JSON.stringify({ error: '处理请求时发生内部错误' }) });
+    }
+  });
 }
