@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>陈科瑾 - 终端</title>
     <style>
-        /* --- 终端风格全局样式 --- */
+        /* --- 黑客帝国风格 --- */
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
         :root {
-            --background: #1a1b26;
-            --foreground: #c0caf5;
-            --green: #9ece6a;
-            --blue: #7aa2f7;
-            --red: #f7768e;
-            --yellow: #e0af68;
-            --cursor: #c0caf5;
+            --background: #0D0208; /* 更深的黑色 */
+            --foreground: #00FF41; /* 明亮的荧光绿 */
+            --green: #00FF41;
+            --blue: #00BFFF; /* 天蓝色，用于一些高亮 */
+            --red: #FF4136;
+            --yellow: #FFDC00;
+            --cursor: #00FF41;
         }
 
         * {
@@ -30,18 +30,29 @@
             font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
             font-size: 16px;
             line-height: 1.8;
-            padding: 2rem;
+            text-shadow: 0 0 5px var(--green); /* 添加辉光效果 */
+        }
+        
+        #matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.3; /* 数字雨不要太抢眼 */
         }
 
         .terminal-container {
+            position: relative;
+            z-index: 1;
             width: 100%;
-            height: calc(100vh - 4rem);
-            border: 1px solid var(--blue);
-            border-radius: 8px;
+            height: 100vh;
             overflow-y: auto;
-            padding: 1rem;
+            padding: 2rem;
             display: flex;
             flex-direction: column;
+            background: rgba(0,0,0,0.5); /* 半透明背景，让数字雨透出来 */
         }
         
         #terminal-output {
@@ -78,6 +89,7 @@
             font-family: inherit;
             font-size: inherit;
             outline: none;
+            text-shadow: 0 0 5px var(--green);
         }
         
         .cursor {
@@ -85,13 +97,14 @@
             width: 10px;
             height: 1.2em;
             background-color: var(--cursor);
+            box-shadow: 0 0 5px var(--cursor);
             animation: blink 1s step-end infinite;
             vertical-align: bottom;
         }
 
         @keyframes blink {
-            from, to { background-color: transparent; }
-            50% { background-color: var(--cursor); }
+            from, to { opacity: 0; }
+            50% { opacity: 1; }
         }
         
         /* 头像样式 */
@@ -102,6 +115,7 @@
             overflow: hidden;
             border: 3px solid var(--blue);
             margin-bottom: 1rem;
+            box-shadow: 0 0 15px var(--blue);
         }
         .profile-image {
             width: 100%;
@@ -112,7 +126,7 @@
     </style>
 </head>
 <body>
-
+    <canvas id="matrix-bg"></canvas>
     <div class="terminal-container" id="terminal-container">
         <div id="terminal-output"></div>
         <div class="input-line">
@@ -160,7 +174,7 @@
 在我的职业生涯中，我专注于AI应用后端架构设计、算法实现与优化，追求代码的健壮性和效率。
 我相信技术的力量可以改变世界，让生活变得更加美好。
             `;
-
+            
             const skillsContent = `
 <span class="command">技术栈:</span>
   - Python      - Go
@@ -198,6 +212,15 @@
                 output.appendChild(line);
                 terminalContainer.scrollTop = terminalContainer.scrollHeight;
             };
+            
+            const showHelp = () => {
+                printToTerminal(welcomeMessage);
+            };
+
+            const clearScreen = () => {
+                output.innerHTML = '';
+                showHelp();
+            };
 
             const printCommand = (cmd) => {
                 printToTerminal(`<span class="prompt">${promptElement.textContent}</span> ${cmd}`);
@@ -208,7 +231,7 @@
                 
                 switch(cmd.toLowerCase()) {
                     case 'help':
-                        printToTerminal(welcomeMessage);
+                        showHelp();
                         break;
                     case 'about':
                         printToTerminal(aboutContent);
@@ -223,13 +246,12 @@
                         printToTerminal(contactContent);
                         break;
                     case 'clear':
-                        output.innerHTML = '';
+                        clearScreen(); // 使用新的清屏函数
                         break;
                     case '#ai':
                         switchToAiMode();
                         break;
                     case '':
-                        // Do nothing for empty command
                         break;
                     default:
                         printToTerminal(`-bash: ${cmd}: command not found`, 'error');
@@ -321,13 +343,52 @@
                 }
             });
             
-            // 点击终端任何位置都能聚焦到输入框
             terminalContainer.addEventListener('click', () => {
                 input.focus();
             });
 
+            // --- Matrix Digital Rain Effect ---
+            const canvas = document.getElementById('matrix-bg');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+            const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const nums = '0123456789';
+            const alphabet = katakana + latin + nums;
+
+            const fontSize = 16;
+            const columns = canvas.width / fontSize;
+            const rainDrops = [];
+
+            for (let x = 0; x < columns; x++) {
+                rainDrops[x] = 1;
+            }
+
+            const draw = () => {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = 'var(--green)';
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < rainDrops.length; i++) {
+                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                    if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        rainDrops[i] = 0;
+                    }
+                    rainDrops[i]++;
+                }
+            };
+
+            setInterval(draw, 33);
+            
             // 初始加载
-            printToTerminal(welcomeMessage);
+            showHelp();
         });
     </script>
 </body>

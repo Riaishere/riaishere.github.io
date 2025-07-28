@@ -13,15 +13,13 @@ const CORS_HEADERS = {
 // 主处理函数 (最终版，已修复)
 exports.handler = async (event, context) => {
   // --- 关键修复：解码并解析真实事件 ---
-  // FC通过自定义域名触发时，会将原始请求信息编码成一个JSON字符串，并作为Buffer传递。
   const eventString = event.toString('utf-8');
   const parsedEvent = JSON.parse(eventString);
 
   // 从解析后的事件中，提取出真正的路径和方法
-  const requestPath = parsedEvent.rawPath || parsedEvent.path;
+  const requestPath = parsedEvent.rawPath || parsedEvent.path || '/';
   const httpMethod = parsedEvent.requestContext.http.method;
   
-  // 使用新的诊断日志，确认我们拿到了正确的值
   console.log(`[最终解析] 收到请求: 方法=${httpMethod}, 路径=${requestPath}`);
 
   // 1. 处理浏览器的OPTIONS预检请求
@@ -33,18 +31,23 @@ exports.handler = async (event, context) => {
   // 2. 处理聊天API的POST请求
   if (requestPath === '/chat' && httpMethod.toUpperCase() === 'POST') {
     console.log("匹配到聊天API路由，准备调用AI");
-    // 将解析后的真实事件传递给处理函数
     return handleChatRequest(parsedEvent);
   }
   
-  // 3. 默认处理所有GET请求，返回主页
+  // 3. 处理GET请求
   if (httpMethod.toUpperCase() === 'GET') {
-      console.log("匹配到主页GET路由");
-      return handleStaticPageRequest();
+      // 根路径返回主页
+      if (requestPath === '/') {
+        console.log("匹配到主页GET路由");
+        return handleStaticPageRequest();
+      }
+      // 其他路径尝试作为静态资源（如图片）返回
+      console.log(`尝试提供静态资源: ${requestPath}`);
+      return handleStaticAssetRequest(requestPath);
   }
 
   // 4. 对于其他所有未知请求，返回404
-  console.log("未匹配到任何路由，返回404");
+  console.log(`未匹配到任何路由，返回404 for ${httpMethod} ${requestPath}`);
   return {
       statusCode: 404,
       headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain; charset=utf-8' },
@@ -54,6 +57,9 @@ exports.handler = async (event, context) => {
 
 // --- 子函数 ---
 
+/**
+ * 处理静态主页HTML的请求
+ */
 function handleStaticPageRequest() {
   try {
     const htmlContent = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
@@ -71,6 +77,67 @@ function handleStaticPageRequest() {
   }
 }
 
+/**
+ * 处理静态资源（如图片）的请求
+ * @param {string} requestPath - 请求的资源路径, e.g., /Ria.jpg
+ */
+function handleStaticAssetRequest(requestPath) {
+    // 安全检查：防止路径遍历攻击
+    const safeSuffix = path.normalize(requestPath).replace(/^(\.\.(\/|\\|$))+/, '');
+    const filePath = path.join(__dirname, safeSuffix);
+
+    if (!fs.existsSync(filePath)) {
+        console.error(`静态资源未找到: ${filePath}`);
+        return { statusCode: 404, headers: {'Content-Type': 'text/plain'}, body: 'Asset Not Found' };
+    }
+
+    try {
+        const fileContent = fs.readFileSync(filePath);
+        const contentType = getContentType(filePath);
+        console.log(`成功提供静态资源: ${filePath} a_s ${contentType}`);
+        
+        return {
+            statusCode: 200,
+            headers: { 'Content-Type': contentType },
+            body: fileContent.toString('base64'),
+            isBase64Encoded: true,
+        };
+    } catch (error) {
+        console.error(`读取静态资源失败: ${error}`);
+        return { statusCode: 500, headers: {'Content-Type': 'text/plain'}, body: 'Error reading asset' };
+    }
+}
+
+/**
+ * 根据文件扩展名获取MIME类型
+ * @param {string} filePath 
+ */
+function getContentType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+            return 'image/jpeg';
+        case '.png':
+            return 'image/png';
+        case '.gif':
+            return 'image/gif';
+        case '.ico':
+            return 'image/x-icon';
+        case '.css':
+            return 'text/css';
+        case '.js':
+            return 'application/javascript';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
+
+/**
+ * 处理对AI聊天API的请求
+ * @param {object} parsedEvent - 已解析的真实事件对象
+ */
 function handleChatRequest(parsedEvent) { // 注意：现在接收的是解析后的事件
   return new Promise((resolve) => {
     // 从解析后的事件体中获取用户消息
