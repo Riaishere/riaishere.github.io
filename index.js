@@ -10,18 +10,19 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// 主处理函数 (最终修正版)
+// 主处理函数 (最终版，已修复)
 exports.handler = async (event, context) => {
-  // 诊断日志：打印出收到的完整事件对象，以便我们能看到真实的数据结构
-  console.log('--- 收到完整的原始事件 (event) ---');
-  console.log(JSON.stringify(event, null, 2));
-  console.log('--- 原始事件打印完毕 ---');
+  // --- 关键修复：解码并解析真实事件 ---
+  // FC通过自定义域名触发时，会将原始请求信息编码成一个JSON字符串，并作为Buffer传递。
+  const eventString = event.toString('utf-8');
+  const parsedEvent = JSON.parse(eventString);
 
-  // 正确地从事件的顶层获取路径和方法
-  const requestPath = event.path || '/';
-  const httpMethod = event.httpMethod || 'GET';
-
-  console.log(`[正确解析] 收到请求: 方法=${httpMethod}, 路径=${requestPath}`);
+  // 从解析后的事件中，提取出真正的路径和方法
+  const requestPath = parsedEvent.rawPath || parsedEvent.path;
+  const httpMethod = parsedEvent.requestContext.http.method;
+  
+  // 使用新的诊断日志，确认我们拿到了正确的值
+  console.log(`[最终解析] 收到请求: 方法=${httpMethod}, 路径=${requestPath}`);
 
   // 1. 处理浏览器的OPTIONS预检请求
   if (httpMethod.toUpperCase() === 'OPTIONS') {
@@ -32,7 +33,8 @@ exports.handler = async (event, context) => {
   // 2. 处理聊天API的POST请求
   if (requestPath === '/chat' && httpMethod.toUpperCase() === 'POST') {
     console.log("匹配到聊天API路由，准备调用AI");
-    return handleChatRequest(event);
+    // 将解析后的真实事件传递给处理函数
+    return handleChatRequest(parsedEvent);
   }
   
   // 3. 默认处理所有GET请求，返回主页
@@ -53,7 +55,6 @@ exports.handler = async (event, context) => {
 // --- 子函数 ---
 
 function handleStaticPageRequest() {
-  // ... (这部分代码是正确的，无需修改)
   try {
     const htmlContent = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
     return {
@@ -70,17 +71,19 @@ function handleStaticPageRequest() {
   }
 }
 
-function handleChatRequest(event) {
+function handleChatRequest(parsedEvent) { // 注意：现在接收的是解析后的事件
   return new Promise((resolve) => {
-    // 正确地从event.body解析用户消息
+    // 从解析后的事件体中获取用户消息
     let userMessage;
     try {
-        if (!event.body) throw new Error("Request body is empty.");
-        const body = JSON.parse(event.body);
+        if (!parsedEvent.body) throw new Error("Request body is empty.");
+        // parsedEvent.body 本身就是个JSON字符串，需要再次解析
+        const body = JSON.parse(parsedEvent.body);
         userMessage = body.message;
         if (!userMessage) throw new Error("'message' field is missing.");
     } catch(e) {
         console.error("解析请求体失败:", e.message);
+        console.error("原始请求体:", parsedEvent.body);
         return resolve({ statusCode: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `无效的请求体: ${e.message}` }) });
     }
     
