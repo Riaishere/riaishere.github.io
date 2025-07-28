@@ -79,11 +79,14 @@ function handleStaticPageRequest() {
 
 /**
  * 处理静态资源（如图片）的请求
- * @param {string} requestPath - 请求的资源路径, e.g., /Ria.jpg
+ * @param {string} requestPath - 请求的资源路径, e.g., /Ria.jpg?t=12345
  */
 function handleStaticAssetRequest(requestPath) {
+    // 关键修复：从请求路径中移除查询参数（例如 ?t=...），得到纯粹的文件路径
+    const pathnameOnly = requestPath.split('?')[0];
+
     // 安全检查：防止路径遍历攻击
-    const safeSuffix = path.normalize(requestPath).replace(/^(\.\.(\/|\\|$))+/, '');
+    const safeSuffix = path.normalize(pathnameOnly).replace(/^(\.\.(\/|\\|$))+/, '');
     const filePath = path.join(__dirname, safeSuffix);
 
     if (!fs.existsSync(filePath)) {
