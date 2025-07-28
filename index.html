@@ -40,7 +40,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.3; /* 数字雨不要太抢眼 */
+            opacity: 0.6; /* 增加数字雨可见度 */
         }
 
         .terminal-container {
@@ -388,22 +388,29 @@
             const canvas = document.getElementById('matrix-bg');
             const ctx = canvas.getContext('2d');
 
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            // 设置canvas尺寸
+            const resizeCanvas = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                console.log('Canvas 尺寸:', canvas.width, 'x', canvas.height);
+            };
+            
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
 
             const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
             const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             const nums = '0123456789';
             const alphabet = katakana + latin + nums;
 
-            // 暗色系颜色数组 - 深绿、深蓝、深青、深紫
+            // 暗色系颜色数组 - 增强可见度
             const darkColors = [
-                'rgba(0, 80, 20, 0.8)',   // 深绿
-                'rgba(0, 40, 80, 0.7)',   // 深蓝  
-                'rgba(0, 60, 60, 0.6)',   // 深青
-                'rgba(40, 0, 60, 0.7)',   // 深紫
-                'rgba(20, 60, 0, 0.8)',   // 暗绿
-                'rgba(0, 20, 40, 0.6)',   // 深蓝灰
+                'rgba(0, 120, 40, 0.9)',   // 暗绿
+                'rgba(0, 80, 120, 0.8)',   // 暗蓝  
+                'rgba(0, 100, 100, 0.8)',  // 暗青
+                'rgba(80, 0, 120, 0.8)',   // 暗紫
+                'rgba(40, 100, 0, 0.9)',   // 深绿
+                'rgba(0, 60, 80, 0.7)',    // 深蓝灰
             ];
 
             // 字体大小数组 - 不同尺寸
@@ -425,7 +432,7 @@
 
             const draw = () => {
                 // 更深的黑色背景，更慢的消散效果
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 const currentTime = Date.now();
@@ -451,16 +458,18 @@
                     // 更新位置
                     drop.y += drop.speed;
                     
-                    // 重置雨滴
-                    if (drop.y > canvas.height && Math.random() > 0.98) {
-                        drop.y = -drop.fontSize;
+                    // 重置雨滴 - 增加重置概率
+                    if (drop.y > canvas.height + drop.fontSize) {
+                        drop.y = -drop.fontSize - Math.random() * 100;
                         drop.speed = 1 + Math.random() * 3;
                         drop.fontSize = fontSizes[Math.floor(Math.random() * fontSizes.length)];
-                        drop.opacity = 0.3 + Math.random() * 0.4;
+                        drop.colorIndex = Math.floor(Math.random() * darkColors.length);
                     }
                 }
             };
 
+            // 启动数字雨动画
+            console.log('开始数字雨动画，雨滴数量:', rainDrops.length);
             setInterval(draw, 50); // 稍微慢一点，让效果更柔和
             
             // 初始加载
