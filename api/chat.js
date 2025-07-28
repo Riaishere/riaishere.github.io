@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // 从环境变量中获取API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const API_URL = 'https://api.deepseek.com/chat/completions';
 
 exports.handler = async (event, context) => {
   // 设置CORS响应头，允许任何来源的访问
