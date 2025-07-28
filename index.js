@@ -2,6 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const stream = require('stream');
+const util = require('util');
 
 // 统一的响应头，包含CORS，允许跨域访问
 const CORS_HEADERS = {
@@ -10,8 +12,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// 主处理函数 (最终版，已修复)
-exports.handler = async (event, context) => {
+// 主处理函数 (无需修改)
+exports.handler = async (event, context, callback) => {
   // --- 关键修复：解码并解析真实事件 ---
   const eventString = event.toString('utf-8');
   const parsedEvent = JSON.parse(eventString);
@@ -25,13 +27,30 @@ exports.handler = async (event, context) => {
   // 1. 处理浏览器的OPTIONS预检请求
   if (httpMethod.toUpperCase() === 'OPTIONS') {
     console.log("正在处理 OPTIONS 预检请求");
-    return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+    callback(null, { statusCode: 204, headers: CORS_HEADERS, body: '' });
+    return;
   }
   
   // 2. 处理聊天API的POST请求
   if (requestPath === '/chat' && httpMethod.toUpperCase() === 'POST') {
-    console.log("匹配到聊天API路由，准备调用AI");
-    return handleChatRequest(parsedEvent);
+    console.log("匹配到聊天API路由，准备调用AI (流式)");
+    // 对于流式响应，我们需要使用 callback 并创建一个响应流
+    const responseStream = stream.Writable({
+        write(chunk, encoding, next) {
+            callback(null, chunk);
+            next();
+        }
+    });
+    // 添加 pipeline 用于错误处理
+    const pipeline = util.promisify(stream.pipeline);
+
+    try {
+        await handleChatStreamRequest(parsedEvent, responseStream);
+    } catch (e) {
+        console.error("流式处理管道出错:", e);
+        responseStream.end(JSON.stringify({ error: "服务器流处理错误" }));
+    }
+    return; // 对于流式函数，在此处返回
   }
   
   // 3. 处理GET请求
@@ -39,20 +58,22 @@ exports.handler = async (event, context) => {
       // 根路径返回主页
       if (requestPath === '/') {
         console.log("匹配到主页GET路由");
-        return handleStaticPageRequest();
+        callback(null, handleStaticPageRequest());
+        return;
       }
       // 其他路径尝试作为静态资源（如图片）返回
       console.log(`尝试提供静态资源: ${requestPath}`);
-      return handleStaticAssetRequest(requestPath);
+      callback(null, handleStaticAssetRequest(requestPath));
+      return;
   }
 
   // 4. 对于其他所有未知请求，返回404
   console.log(`未匹配到任何路由，返回404 for ${httpMethod} ${requestPath}`);
-  return {
+  callback(null, {
       statusCode: 404,
       headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain; charset=utf-8' },
       body: 'Not Found'
-  };
+  });
 };
 
 // --- 子函数 ---
@@ -138,28 +159,32 @@ function getContentType(filePath) {
 
 
 /**
- * 处理对AI聊天API的请求
+ * 【新】处理对AI聊天API的流式请求
  * @param {object} parsedEvent - 已解析的真实事件对象
+ * @param {stream.Writable} responseStream - 用于将数据流式返回给客户端的流
  */
-function handleChatRequest(parsedEvent) { // 注意：现在接收的是解析后的事件
-  return new Promise((resolve) => {
-    // 从解析后的事件体中获取用户消息
+async function handleChatStreamRequest(parsedEvent, responseStream) {
+    // 写入响应头
+    responseStream.write(`HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n` +
+                         `Access-Control-Allow-Origin: *\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n`);
+    
     let userMessage;
     try {
         if (!parsedEvent.body) throw new Error("Request body is empty.");
-        // parsedEvent.body 本身就是个JSON字符串，需要再次解析
         const body = JSON.parse(parsedEvent.body);
         userMessage = body.message;
         if (!userMessage) throw new Error("'message' field is missing.");
-    } catch(e) {
-        console.error("解析请求体失败:", e.message);
-        console.error("原始请求体:", parsedEvent.body);
-        return resolve({ statusCode: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `无效的请求体: ${e.message}` }) });
+    } catch (e) {
+        responseStream.write(`data: ${JSON.stringify({error: e.message})}\n\n`);
+        responseStream.end();
+        return;
     }
-    
+
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
     if (!DEEPSEEK_API_KEY) {
-        return resolve({ statusCode: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: '服务器未配置 DEEPSEEK_API_KEY' }) });
+        responseStream.write(`data: ${JSON.stringify({error: '服务器未配置 DEEPSEEK_API_KEY'})}\n\n`);
+        responseStream.end();
+        return;
     }
 
     const postData = JSON.stringify({
@@ -168,7 +193,7 @@ function handleChatRequest(parsedEvent) { // 注意：现在接收的是解析�
           { content: '你是一个AI助手，你的名字叫“石耳AI”，由陈科瑾创造。请用友好、简洁、乐于助人的语气回答问题。', role: 'system' },
           { content: userMessage, role: 'user' },
         ],
-        stream: false,
+        stream: true, // <-- 关键：开启流式响应
     });
 
     const options = {
@@ -178,38 +203,45 @@ function handleChatRequest(parsedEvent) { // 注意：现在接收的是解析�
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-          'Content-Length': Buffer.byteLength(postData),
         },
     };
 
-    console.log(`正在向 DeepSeek API 发送消息...`);
     const req = https.request(options, (res) => {
-        let responseBody = '';
-        res.on('data', (chunk) => { responseBody += chunk; });
-        res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-                const responseData = JSON.parse(responseBody);
-                const aiMessage = responseData.choices[0].message.content;
-                console.log(`从 DeepSeek API 收到回复。`);
-                resolve({ statusCode: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ reply: aiMessage }) });
-            } catch(e) {
-                console.error("解析DeepSeek响应失败:", e);
-                resolve({ statusCode: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "解析AI响应时出错" }) });
+        res.on('data', (chunk) => {
+            // DeepSeek的流式响应是 Server-Sent Events (SSE) 格式
+            // 它可能是多个 "data: {...}" 块
+            const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonData = line.substring(6);
+                    if (jsonData.trim() === '[DONE]') {
+                        // 流结束的标志
+                        responseStream.end();
+                        return;
+                    }
+                    try {
+                        const parsedChunk = JSON.parse(jsonData);
+                        const content = parsedChunk.choices[0].delta.content;
+                        if (content) {
+                            // 将收到的AI内容块直接转发给前端
+                            responseStream.write(`data: ${JSON.stringify({ reply_chunk: content })}\n\n`);
+                        }
+                    } catch(e) {
+                        console.error("解析DeepSeek流式块失败:", jsonData);
+                    }
+                }
             }
-          } else {
-            console.error('DeepSeek API 返回错误:', responseBody);
-            resolve({ statusCode: res.statusCode, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `AI服务返回错误: ${responseBody}` }) });
-          }
+        });
+        res.on('end', () => {
+            responseStream.end();
         });
     });
 
     req.on('error', (e) => {
-        console.error(`请求 DeepSeek API 时出错: ${e.message}`);
-        resolve({ statusCode: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: '调用AI服务时发生网络错误' }) });
+        responseStream.write(`data: ${JSON.stringify({error: `调用AI服务时发生网络错误: ${e.message}`})}\n\n`);
+        responseStream.end();
     });
 
     req.write(postData);
     req.end();
-  });
 }

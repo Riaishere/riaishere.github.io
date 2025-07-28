@@ -138,7 +138,7 @@
             <input type="text" id="terminal-input" autocomplete="off" autofocus>
             <span class="cursor"></span>
         </div>
-    </div>
+        </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -172,7 +172,7 @@
             const aboutContent = `
 <div class="profile-image-container">
     <img src="Ria.jpg?t=${new Date().getTime()}" alt="Ria's Avatar" class="profile-image">
-</div>
+                </div>
 你好！我是陈科瑾，一位专注于AI应用开发的工程师。
 我热衷于探索人工智能技术在实际业务场景中的应用，致力于构建可扩展、高性能的AI驱动应用程序。
 在我的职业生涯中，我专注于AI应用后端架构设计、算法实现与优化，追求代码的健壮性和效率。
@@ -284,43 +284,67 @@
                     return;
                 }
                 
-                // 禁用输入框
                 input.disabled = true;
 
-                const thinkingLine = document.createElement('div');
-                thinkingLine.className = 'output-line';
-                thinkingLine.innerHTML = `<span class="prompt" style="color: var(--blue);">AI is thinking...</span>`;
-                output.appendChild(thinkingLine);
+                // 创建一个用于显示AI回复的容器
+                const aiReplyContainer = document.createElement('div');
+                aiReplyContainer.className = 'output-line';
+                aiReplyContainer.innerHTML = `<span class="prompt" style="color: var(--blue);">AI:</span> <span class="ai-reply"></span>`;
+                output.appendChild(aiReplyContainer);
+                const aiReplySpan = aiReplyContainer.querySelector('.ai-reply');
+                
                 terminalContainer.scrollTop = terminalContainer.scrollHeight;
 
                 try {
+                    // 使用 fetch API 发送POST请求并处理流式响应
                     const response = await fetch(API_ENDPOINT, {
-                        method: 'POST',
+                    method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message: message }),
-                    });
+                });
 
-                    output.removeChild(thinkingLine);
-
-                    if (!response.ok) {
+                if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'AI服务返回一个错误');
                     }
-                    
-                    const data = await response.json();
-                    // 使用replace处理可能的换行符 \n 为 <br>
-                    const formattedReply = data.reply.replace(/\\n/g, '<br>');
-                    printToTerminal(`<span class="prompt" style="color: var(--blue);">AI:</span> ${formattedReply}`);
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            break;
+                        }
+                        
+                        // 服务器返回的流式数据可能是多个 "data: {...}" 块拼接在一起
+                        const chunk = decoder.decode(value, { stream: true });
+                        const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'));
+                        
+                        for (const line of lines) {
+                            const jsonData = line.substring(5).trim();
+                            if (jsonData) {
+                                try {
+                                    const data = JSON.parse(jsonData);
+                                    if (data.error) {
+                                        throw new Error(data.error);
+                                    }
+                                    if (data.reply_chunk) {
+                                        aiReplySpan.innerHTML += data.reply_chunk.replace(/\\n/g, '<br>');
+                                        terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                                    }
+                                } catch(e) {
+                                    console.error("解析流式JSON块失败:", jsonData, e);
+                                }
+                            }
+                        }
+                    }
 
                 } catch (error) {
-                    if (output.contains(thinkingLine)) {
-                       output.removeChild(thinkingLine);
-                    }
                     printToTerminal(`[AI Error]: ${error.message}`, 'error');
                 } finally {
-                    // 无论成功失败，都重新启用输入框
                     input.disabled = false;
-                    input.focus(); // 重新聚焦
+                    input.focus();
                 }
             };
 
@@ -360,7 +384,7 @@
                 input.focus();
             });
 
-            // --- Matrix Digital Rain Effect ---
+            // --- 增强版数字雨效果 ---
             const canvas = document.getElementById('matrix-bg');
             const ctx = canvas.getContext('2d');
 
@@ -372,33 +396,72 @@
             const nums = '0123456789';
             const alphabet = katakana + latin + nums;
 
-            const fontSize = 16;
-            const columns = canvas.width / fontSize;
-            const rainDrops = [];
+            // 暗色系颜色数组 - 深绿、深蓝、深青、深紫
+            const darkColors = [
+                'rgba(0, 80, 20, 0.8)',   // 深绿
+                'rgba(0, 40, 80, 0.7)',   // 深蓝  
+                'rgba(0, 60, 60, 0.6)',   // 深青
+                'rgba(40, 0, 60, 0.7)',   // 深紫
+                'rgba(20, 60, 0, 0.8)',   // 暗绿
+                'rgba(0, 20, 40, 0.6)',   // 深蓝灰
+            ];
 
+            // 字体大小数组 - 不同尺寸
+            const fontSizes = [12, 14, 16, 18, 20];
+            const columns = Math.floor(canvas.width / 16); // 基于平均字体大小计算列数
+            
+            // 每个雨滴的属性
+            const rainDrops = [];
             for (let x = 0; x < columns; x++) {
-                rainDrops[x] = 1;
+                rainDrops[x] = {
+                    y: Math.random() * canvas.height,
+                    speed: 1 + Math.random() * 3,      // 随机速度
+                    fontSize: fontSizes[Math.floor(Math.random() * fontSizes.length)],
+                    colorIndex: Math.floor(Math.random() * darkColors.length),
+                    opacity: 0.3 + Math.random() * 0.4, // 随机透明度
+                    lastColorChange: Date.now()
+                };
             }
 
             const draw = () => {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                // 更深的黑色背景，更慢的消散效果
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.fillStyle = 'var(--green)';
-                ctx.font = fontSize + 'px monospace';
+                const currentTime = Date.now();
 
                 for (let i = 0; i < rainDrops.length; i++) {
-                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-                    ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
-
-                    if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-                        rainDrops[i] = 0;
+                    const drop = rainDrops[i];
+                    
+                    // 每2-5秒随机改变颜色
+                    if (currentTime - drop.lastColorChange > 2000 + Math.random() * 3000) {
+                        drop.colorIndex = Math.floor(Math.random() * darkColors.length);
+                        drop.lastColorChange = currentTime;
                     }
-                    rainDrops[i]++;
+                    
+                    // 设置字体和颜色
+                    ctx.font = drop.fontSize + 'px monospace';
+                    ctx.fillStyle = darkColors[drop.colorIndex];
+                    
+                    // 绘制字符
+                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    const x = i * (canvas.width / columns);
+                    ctx.fillText(text, x, drop.y);
+
+                    // 更新位置
+                    drop.y += drop.speed;
+                    
+                    // 重置雨滴
+                    if (drop.y > canvas.height && Math.random() > 0.98) {
+                        drop.y = -drop.fontSize;
+                        drop.speed = 1 + Math.random() * 3;
+                        drop.fontSize = fontSizes[Math.floor(Math.random() * fontSizes.length)];
+                        drop.opacity = 0.3 + Math.random() * 0.4;
+                    }
                 }
             };
 
-            setInterval(draw, 33);
+            setInterval(draw, 50); // 稍微慢一点，让效果更柔和
             
             // 初始加载
             showHelp();
