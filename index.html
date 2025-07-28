@@ -413,26 +413,28 @@
                 'rgba(0, 60, 80, 0.7)',    // 深蓝灰
             ];
 
-            // 字体大小数组 - 不同尺寸
-            const fontSizes = [12, 14, 16, 18, 20];
-            const columns = Math.floor(canvas.width / 16); // 基于平均字体大小计算列数
+            // 字体大小数组 - 扩大尺寸范围
+            const fontSizes = [10, 14, 18, 22, 26, 30, 34];
+            const columns = Math.floor(canvas.width / 20); // 基于平均字体大小计算列数
             
             // 每个雨滴的属性
             const rainDrops = [];
             for (let x = 0; x < columns; x++) {
                 rainDrops[x] = {
                     y: Math.random() * canvas.height,
-                    speed: 1 + Math.random() * 3,      // 随机速度
+                    speed: 0.8 + Math.random() * 2,    // 减慢速度
                     fontSize: fontSizes[Math.floor(Math.random() * fontSizes.length)],
                     colorIndex: Math.floor(Math.random() * darkColors.length),
                     opacity: 0.3 + Math.random() * 0.4, // 随机透明度
-                    lastColorChange: Date.now()
+                    lastColorChange: Date.now(),
+                    currentChar: alphabet.charAt(Math.floor(Math.random() * alphabet.length)),
+                    charChangeCounter: 0
                 };
             }
 
             const draw = () => {
                 // 更深的黑色背景，更慢的消散效果
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 const currentTime = Date.now();
@@ -440,37 +442,45 @@
                 for (let i = 0; i < rainDrops.length; i++) {
                     const drop = rainDrops[i];
                     
-                    // 每2-5秒随机改变颜色
-                    if (currentTime - drop.lastColorChange > 2000 + Math.random() * 3000) {
+                    // 每3-6秒随机改变颜色
+                    if (currentTime - drop.lastColorChange > 3000 + Math.random() * 3000) {
                         drop.colorIndex = Math.floor(Math.random() * darkColors.length);
                         drop.lastColorChange = currentTime;
+                    }
+                    
+                    // 字符变化控制 - 每5-10帧才变化一次字符
+                    drop.charChangeCounter++;
+                    if (drop.charChangeCounter > 5 + Math.random() * 5) {
+                        drop.currentChar = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                        drop.charChangeCounter = 0;
                     }
                     
                     // 设置字体和颜色
                     ctx.font = drop.fontSize + 'px monospace';
                     ctx.fillStyle = darkColors[drop.colorIndex];
                     
-                    // 绘制字符
-                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    // 绘制字符 - 使用相对稳定的字符
                     const x = i * (canvas.width / columns);
-                    ctx.fillText(text, x, drop.y);
+                    ctx.fillText(drop.currentChar, x, drop.y);
 
                     // 更新位置
                     drop.y += drop.speed;
                     
-                    // 重置雨滴 - 增加重置概率
+                    // 重置雨滴
                     if (drop.y > canvas.height + drop.fontSize) {
                         drop.y = -drop.fontSize - Math.random() * 100;
-                        drop.speed = 1 + Math.random() * 3;
+                        drop.speed = 0.8 + Math.random() * 2;
                         drop.fontSize = fontSizes[Math.floor(Math.random() * fontSizes.length)];
                         drop.colorIndex = Math.floor(Math.random() * darkColors.length);
+                        drop.currentChar = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                        drop.charChangeCounter = 0;
                     }
                 }
             };
 
             // 启动数字雨动画
             console.log('开始数字雨动画，雨滴数量:', rainDrops.length);
-            setInterval(draw, 50); // 稍微慢一点，让效果更柔和
+            setInterval(draw, 80); // 降低帧率，让数字更清晰
             
             // 初始加载
             showHelp();
