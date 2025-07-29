@@ -370,47 +370,40 @@
                         throw new Error(`AI服务错误 (${response.status}): ${errorText}`);
                     }
 
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
+                    // 处理非流式响应
+                    const responseData = await response.json();
+                    console.log('收到AI响应');
                     
-                    // 清空加载状态，准备接收真实回复
+                    // 清空加载状态
                     aiReplySpan.innerHTML = '';
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) {
-                            console.log('流式响应完成');
-                            break;
-                        }
-                        
-                        // 服务器返回的流式数据可能是多个 "data: {...}" 块拼接在一起
-                        const chunk = decoder.decode(value, { stream: true });
-                        console.log('收到数据块:', chunk);
-                        const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'));
-                        
-                        for (const line of lines) {
-                            const jsonData = line.substring(5).trim();
-                            if (jsonData) {
-                                try {
-                                    const data = JSON.parse(jsonData);
-                                    if (data.error) {
-                                        throw new Error(data.error);
-                                    }
-                                    if (data.reply_chunk) {
-                                        aiReplySpan.innerHTML += data.reply_chunk.replace(/\\n/g, '<br>');
-                                        terminalContainer.scrollTop = terminalContainer.scrollHeight;
-                                    }
-                                } catch(e) {
-                                    console.error("解析流式JSON块失败:", jsonData, e);
-                                }
-                            }
-                        }
+                    
+                    if (responseData.error) {
+                        throw new Error(responseData.error);
                     }
                     
-                    // 真实AI响应完成，启用输入框
-                    console.log('真实AI响应完成，启用输入框');
-                    input.disabled = false;
-                    input.focus();
+                    if (responseData.reply) {
+                        // 模拟打字效果显示AI回复
+                        const aiReply = responseData.reply;
+                        let index = 0;
+                        
+                        const typeAIResponse = () => {
+                            if (index < aiReply.length) {
+                                const char = aiReply.charAt(index);
+                                aiReplySpan.innerHTML += char === '\n' ? '<br>' : char;
+                                index++;
+                                setTimeout(typeAIResponse, 20); // 打字速度
+                                terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                            } else {
+                                // AI响应完成，启用输入框
+                                console.log('AI响应完成，启用输入框');
+                                input.disabled = false;
+                                input.focus();
+                            }
+                        };
+                        
+                        typeAIResponse();
+                        return; // 提前返回，避免在finally中重复启用输入框
+                    }
 
                 } catch (error) {
                     console.error('AI请求失败:', error);
@@ -444,10 +437,10 @@
                     // 对于本地AI，不在finally中启用输入框，而是在打字完成后启用
                     return;
                 } finally {
-                    // 最终确保输入框启用（双重保障）
+                    // 最终确保输入框启用（仅在出错或其他异常情况下）
                     setTimeout(() => {
                         if (input.disabled) {
-                            console.log('Finally块启用输入框');
+                            console.log('Finally块启用输入框（异常情况）');
                             input.disabled = false;
                             input.focus();
                         }
