@@ -295,17 +295,79 @@
                 
                 terminalContainer.scrollTop = terminalContainer.scrollHeight;
 
+                // 预设问答字典 - 完美匹配时直接回复
+                const presetResponses = {
+                    "你好": "你好！我是石耳AI，由陈科瑾创造。很高兴见到你！有什么我可以帮助你的吗？",
+                    "hello": "Hello! I'm 石耳AI, created by 陈科瑾. Nice to meet you! How can I help you today?",
+                    "你是谁": "我是石耳AI，一个由陈科瑾开发的人工智能助手。我被设计来帮助用户解答问题、提供信息和进行友好的对话。",
+                    "陈科瑾是谁": "陈科瑾是一位专注于AI应用开发的工程师，也是我的创造者。他热衷于探索人工智能技术在实际业务场景中的应用，致力于构建可扩展、高性能的AI驱动应用程序。",
+                    "你的技能": "我可以帮助你：\n• 回答各种问题和提供信息\n• 进行技术讨论，特别是AI和编程相关\n• 协助解决问题和提供建议\n• 进行友好的日常对话\n• 解释复杂概念，让它们更容易理解",
+                    "网站简介": "这是陈科瑾的个人交互式终端简历网站。它采用黑客帝国风格的终端界面，集成了数字雨背景效果。你可以通过命令行界面了解他的技能、项目经验和联系方式，还可以与我这个AI助手对话。",
+                    "帮助": "你可以：\n• 询问关于陈科瑾的信息\n• 讨论技术话题\n• 寻求编程建议\n• 进行日常对话\n• 输入 'exit' 退出AI模式\n• 输入 '快速命令' 查看所有预设问题\n\n试试问我任何你感兴趣的问题吧！",
+                    "快速命令": "以下是所有可用的快速回复命令：\n━━━━━━━━━━━━━━━━━━━━━━\n• 你好 / hello - 打招呼\n• 你是谁 - 了解我是谁\n• 陈科瑾是谁 - 了解我的创造者\n• 你的技能 - 查看我的能力\n• 这个网站 - 网站介绍\n• 帮助 - 查看使用说明\n• 快速命令 - 显示此列表\n• 再见 - 告别\n• 谢谢 - 表达感谢\n━━━━━━━━━━━━━━━━━━━━━━\n💡 输入以上任何命令都会获得即时回复！",
+                    "再见": "再见！感谢你与我的对话。如果还有其他问题，随时可以再次进入AI模式找我聊天。祝你有美好的一天！",
+                    "谢谢": "不客气！很高兴能帮助你。如果还有其他问题，随时可以问我哦！"
+                };
+
+                // 检查是否有完美匹配的预设回复
+                const trimmedMessage = message.trim();
+                if (presetResponses.hasOwnProperty(trimmedMessage)) {
+                    console.log('使用预设回复:', trimmedMessage);
+                    
+                    // 显示预设回复来源标识
+                    printToTerminal(`[快速回复] 匹配到预设答案`, 'output-line');
+                    
+                    // 流式输出预设回复
+                    const presetResponse = presetResponses[trimmedMessage];
+                    let index = 0;
+                    
+                    const typePresetResponse = () => {
+                        if (index < presetResponse.length) {
+                            const char = presetResponse.charAt(index);
+                            aiReplySpan.innerHTML += char === '\n' ? '<br>' : char;
+                            index++;
+                            setTimeout(typePresetResponse, 25); // 快速打字效果
+                            terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                        } else {
+                            // 完成后重新启用输入
+                            input.disabled = false;
+                            input.focus();
+                        }
+                    };
+                    
+                    // 短暂延迟后开始打字
+                    setTimeout(typePresetResponse, 200);
+                    return; // 直接返回，不调用真实AI
+                }
+
+                // 本地备用AI回复（当真实AI不可用时）
+                const localAIResponse = (msg) => {
+                    const responses = [
+                        `你好！我是石耳AI，很高兴认识你！关于"${msg}"，我现在是本地模式运行。`,
+                        `感谢你的问题"${msg}"！由于AI服务暂时不可用，我正在本地模式下回复你。`,
+                        `我理解你想了解"${msg}"的相关内容。目前我在离线模式下为你服务。`,
+                        `关于"${msg}"，这是一个很有趣的话题！目前我是本地简化版本。`
+                    ];
+                    return responses[Math.floor(Math.random() * responses.length)];
+                };
+
                 try {
+                    console.log('发送AI请求:', message);
+                    console.log('请求端点:', API_ENDPOINT);
+                    
                     // 使用 fetch API 发送POST请求并处理流式响应
                     const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message: message }),
                 });
+                
+                    console.log('响应状态:', response.status, response.statusText);
 
                 if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'AI服务返回一个错误');
+                        const errorText = await response.text();
+                        console.error('错误响应:', errorText);
+                        throw new Error(`AI服务错误 (${response.status}): ${errorText}`);
                     }
 
                     const reader = response.body.getReader();
@@ -319,6 +381,7 @@
                         
                         // 服务器返回的流式数据可能是多个 "data: {...}" 块拼接在一起
                         const chunk = decoder.decode(value, { stream: true });
+                        console.log('收到数据块:', chunk);
                         const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'));
                         
                         for (const line of lines) {
@@ -341,10 +404,33 @@
                     }
 
                 } catch (error) {
-                    printToTerminal(`[AI Error]: ${error.message}`, 'error');
+                    console.error('AI请求失败:', error);
+                    
+                    // 提供备用回复机制 - 使用本地AI模拟
+                    console.log('切换到本地AI模式');
+                    
+                    // 模拟打字效果
+                    const localResponse = localAIResponse(message);
+                    let index = 0;
+                    
+                    const typeWriter = () => {
+                        if (index < localResponse.length) {
+                            aiReplySpan.innerHTML += localResponse.charAt(index);
+                            index++;
+                            setTimeout(typeWriter, 30); // 打字速度
+                            terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                        }
+                    };
+                    
+                    aiReplySpan.innerHTML = '';
+                    setTimeout(typeWriter, 300); // 延迟开始，模拟思考时间
+                    
+                    printToTerminal(`[本地AI] 远程AI服务不可用，已切换到本地模式`, 'error');
                 } finally {
-                    input.disabled = false;
-                    input.focus();
+                    setTimeout(() => {
+                        input.disabled = false;
+                        input.focus();
+                    }, 2000); // 等待打字动画完成
                 }
             };
 
