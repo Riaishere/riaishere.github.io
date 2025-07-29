@@ -40,7 +40,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.6; /* 增加数字雨可见度 */
+            opacity: 0.7; /* 进一步增加数字雨可见度 */
         }
 
         .terminal-container {
@@ -352,6 +352,9 @@
                     console.log('发送AI请求:', message);
                     console.log('请求端点:', API_ENDPOINT);
                     
+                    // 显示加载状态
+                    aiReplySpan.innerHTML = '🤔 思考中...';
+                    
                     // 使用 fetch API 发送POST请求并处理流式响应
                     const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
@@ -369,10 +372,14 @@
 
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
+                    
+                    // 清空加载状态，准备接收真实回复
+                    aiReplySpan.innerHTML = '';
 
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) {
+                            console.log('流式响应完成');
                             break;
                         }
                         
@@ -399,12 +406,21 @@
                             }
                         }
                     }
+                    
+                    // 真实AI响应完成，启用输入框
+                    console.log('真实AI响应完成，启用输入框');
+                    input.disabled = false;
+                    input.focus();
 
                 } catch (error) {
                     console.error('AI请求失败:', error);
                     
+                    // 清空加载状态
+                    aiReplySpan.innerHTML = '';
+                    
                     // 提供备用回复机制 - 使用本地AI模拟
                     console.log('切换到本地AI模式');
+                    printToTerminal(`[本地AI] 远程AI服务不可用，已切换到本地模式`, 'error');
                     
                     // 模拟打字效果
                     const localResponse = localAIResponse(message);
@@ -423,17 +439,19 @@
                         }
                     };
                     
-                    aiReplySpan.innerHTML = '';
                     setTimeout(typeWriter, 300); // 延迟开始，模拟思考时间
-                    
-                    printToTerminal(`[本地AI] 远程AI服务不可用，已切换到本地模式`, 'error');
                     
                     // 对于本地AI，不在finally中启用输入框，而是在打字完成后启用
                     return;
                 } finally {
-                    // 确保输入框重新启用（仅限真实AI调用的情况）
-                    input.disabled = false;
-                    input.focus();
+                    // 最终确保输入框启用（双重保障）
+                    setTimeout(() => {
+                        if (input.disabled) {
+                            console.log('Finally块启用输入框');
+                            input.disabled = false;
+                            input.focus();
+                        }
+                    }, 100);
                 }
             };
 
@@ -491,19 +509,21 @@
             const nums = '0123456789';
             const alphabet = nums;
 
-            // 暗色系颜色数组 - 增强可见度
+            // 暗色系颜色数组 - 提升亮度
             const darkColors = [
-                'rgba(0, 120, 40, 0.9)',   // 暗绿
-                'rgba(0, 80, 120, 0.8)',   // 暗蓝  
-                'rgba(0, 100, 100, 0.8)',  // 暗青
-                'rgba(80, 0, 120, 0.8)',   // 暗紫
-                'rgba(40, 100, 0, 0.9)',   // 深绿
-                'rgba(0, 60, 80, 0.7)',    // 深蓝灰
+                'rgba(0, 180, 60, 0.9)',   // 较亮绿色
+                'rgba(0, 120, 180, 0.8)',  // 较亮蓝色  
+                'rgba(0, 150, 150, 0.8)',  // 较亮青色
+                'rgba(120, 0, 180, 0.8)',  // 较亮紫色
+                'rgba(60, 150, 0, 0.9)',   // 较亮深绿
+                'rgba(0, 100, 120, 0.8)',  // 较亮蓝灰
+                'rgba(100, 80, 0, 0.7)',   // 金黄色
+                'rgba(180, 0, 100, 0.7)',  // 玫红色
             ];
 
             // 字体大小数组 - 扩大尺寸范围
             const fontSizes = [10, 14, 18, 22, 26, 30, 34];
-            const columns = Math.floor(canvas.width / 20); // 基于平均字体大小计算列数
+            const columns = Math.floor(canvas.width / 15); // 增加数字雨密度
             
             // 每个雨滴的属性
             const rainDrops = [];
