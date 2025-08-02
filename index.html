@@ -24,13 +24,19 @@
             box-sizing: border-box;
         }
 
-        body {
+                body {
             background-color: var(--background);
             color: var(--foreground);
             font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
             font-size: 16px;
             line-height: 1.8;
             text-shadow: 0 0 5px var(--green); /* 添加辉光效果 */
+            /* --- 新增：使用 Flexbox 实现居中 --- */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden; /* 避免出现滚动条 */
         }
         
         #matrix-bg {
@@ -46,13 +52,33 @@
         .terminal-container {
             position: relative;
             z-index: 1;
-            width: 100%;
-            height: 100vh;
-            overflow-y: auto;
+            max-width: 1000px; /* 设置最大宽度 */
+            width: 90%;       /* 响应式宽度 */
+            height: 90vh;     /* 视图高度的90% */
+            overflow: auto;   /* 仅当内容溢出时显示滚动条 */
             padding: 2rem;
             display: flex;
             flex-direction: column;
-            background: rgba(0,0,0,0.5); /* 半透明背景，让数字雨透出来 */
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 10px;
+            
+            /* --- 新增：流光边框准备 --- */
+            border: 2px solid transparent; /* 边框占位 */
+            background-clip: padding-box;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            animation: animate-glow 3s linear infinite;
+        }
+
+        @keyframes animate-glow {
+            0% {
+                box-shadow: 0 0 20px rgba(0, 255, 65, 0.8);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(0, 255, 65, 0.4);
+            }
+            100% {
+                box-shadow: 0 0 20px rgba(0, 255, 65, 0.8);
+            }
         }
         
         #terminal-output {
